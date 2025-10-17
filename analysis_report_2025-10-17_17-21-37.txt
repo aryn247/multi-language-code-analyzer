@@ -1,0 +1,24 @@
+Language Detected: JavaScript
+
+✅ No critical functions detected!
+
+📊 Function Complexity Graph:
+greet                | █ 1
+add                  | █ 1
+nestedLoop           | █ 1
+
+--- Analysis Report ---
+Average Complexity: 1.0
+Total Lines: 0
+Number of Functions: 3
+Largest Function: nestedLoop (6 lines)
+Efficiency Grade: A
+Loops Detected: 2
+Nested Loops: 1
+
+🧠 Dead Code Analysis:
+ - No unused variables found!
+ - Unused Functions: nestedLoop, add, greet
+
+Suggestions:
+

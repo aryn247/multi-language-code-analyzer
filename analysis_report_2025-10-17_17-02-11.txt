@@ -1,0 +1,19 @@
+=== Multi-Language Code Analyzer & Optimizer ===
+Analyzed File: sample_code.js
+Language: JavaScript
+
+✅ No critical functions detected!
+
+Average Complexity: 0
+Total Lines: 0
+Number of Functions: 3
+Largest Function: nestedLoop (6 lines)
+Efficiency Grade: A
+Loops Detected: 2
+Nested Loops: 1
+
+Dead Code Analysis:
+ - No unused variables found!
+ - Unused Functions: greet, nestedLoop, add
+
+Suggestions:

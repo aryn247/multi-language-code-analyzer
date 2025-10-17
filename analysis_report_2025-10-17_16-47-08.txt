@@ -1,0 +1,6 @@
+=== Multi-Language Code Analyzer ===
+Analyzed File: sample_code.js
+Language: JavaScript
+Number of Functions/Methods: 2
+Loops Detected: 0
+Function Names: greet, add

@@ -1,0 +1,9 @@
+=== Code Analyzer & Optimizer ===
+Analyzed File: sample_code.py
+Maintainability Index: 69.18
+Functions & Complexity: [('inefficient_function', 4), ('calculate_sum', 2)]
+Loops Detected: [2, 9, 3]
+Nested Loops: 1
+
+Suggestions:
+ - ⚙️ Nested loops detected — consider using data structures or sets for optimization.

@@ -1,0 +1,7 @@
+colorama
+javalang
+esprima
+networkx
+matplotlib
+radon
+tk

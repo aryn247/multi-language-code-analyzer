@@ -1,0 +1,21 @@
+=== Code Analyzer & Optimizer ===
+Analyzed File: sample_code.py
+✅ No critical functions detected!
+Maintainability Index: 69.18
+Functions & Complexity:
+  - inefficient_function: 4, starts at line 1
+  - calculate_sum: 2, starts at line 7
+Average Complexity: 3.0
+Total Lines: 11
+Comment Lines: 0 (0.0%)
+Number of Functions: 2
+Largest Function: inefficient_function (5 lines)
+Efficiency Grade: C
+Loops Detected: [2, 9, 3]
+Nested Loops: 1
+
+Per-Function Suggestions:
+ - inefficient_function:
+    • Nested loops detected — consider using sets/dicts for optimization.
+Suggestions:
+ - ⚙️ Nested loops detected — consider using efficient data structures.

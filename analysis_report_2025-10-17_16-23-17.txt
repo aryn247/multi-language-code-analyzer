@@ -1,0 +1,23 @@
+=== Code Analyzer & Optimizer ===
+Analyzed File: sample_code.py
+
+✅ No critical functions detected!
+
+Maintainability Index: 69.18
+Average Complexity: 3.0
+Total Lines: 11
+Comment Lines: 0 (0.0%)
+Number of Functions: 2
+Largest Function: inefficient_function (4 lines)
+Efficiency Grade: A
+Loops Detected: 3
+Nested Loops: 3
+
+Dead Code Analysis:
+ - No unused variables found!
+ - Unused Functions: calculate_sum, inefficient_function
+
+Suggestions:
+ - ⚙️ Nested loops detected — consider using data structures or sets for optimization.
+ - ⚠️ Low comment ratio — add docstrings or comments for maintainability.
+ - ⚙️ Unused functions: calculate_sum, inefficient_function — consider removing dead code.
