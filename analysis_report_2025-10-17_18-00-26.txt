@@ -1,0 +1,23 @@
+Language Detected: JavaScript
+
+⚠️ Critical Functions Detected:
+ - getJavaFixes: complexity=1, lines=83
+
+📊 Function Complexity Graph:
+getJavaFixes         | █ 1
+
+--- Analysis Report ---
+Average Complexity: 1.0
+Total Lines: 0
+Number of Functions: 1
+Largest Function: getJavaFixes (83 lines)
+Efficiency Grade: A
+Loops Detected: 0
+Nested Loops: 0
+
+🧠 Dead Code Analysis:
+ - No unused variables found!
+ - Unused Functions: getJavaFixes
+
+Suggestions:
+

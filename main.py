@@ -1,144 +1,85 @@
 import tkinter as tk
 from tkinter import filedialog, ttk, scrolledtext, messagebox
 from multi_language_analyzer import analyze_code, visualize_dependencies
-import datetime
 import threading
 
 class CodeAnalyzerGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Multi-Language Code Analyzer & Optimizer")
-        self.root.geometry("900x700")
+        self.root.title("Multi-Language Code Analyzer")
+        self.root.geometry("900x600")
 
-        # --- File Selection ---
-        self.file_label = tk.Label(root, text="Select code file:")
-        self.file_label.pack(pady=5)
-        self.file_entry = tk.Entry(root, width=70)
-        self.file_entry.pack(pady=5, padx=10, side=tk.LEFT)
-        self.browse_btn = tk.Button(root, text="Browse", command=self.browse_file)
-        self.browse_btn.pack(pady=5)
-
-        # --- Language Selection ---
-        self.lang_label = tk.Label(root, text="Select language:")
-        self.lang_label.pack(pady=5)
+        # Language selection
         self.lang_var = tk.StringVar(value="python")
-        self.lang_dropdown = ttk.Combobox(root, textvariable=self.lang_var, values=["python","java","js"], state="readonly")
-        self.lang_dropdown.pack(pady=5)
+        languages = ["Python", "Java", "JavaScript", "C", "C++"]
+        tk.Label(root, text="Select Language:").pack(anchor="nw", padx=10, pady=5)
+        self.lang_menu = ttk.Combobox(root, values=languages, textvariable=self.lang_var, state="readonly")
+        self.lang_menu.pack(anchor="nw", padx=10)
 
-        # --- Analyze Button ---
-        self.analyze_btn = tk.Button(root, text="Analyze Code", command=self.analyze_code_thread)
-        self.analyze_btn.pack(pady=10)
+        # Code input area
+        tk.Label(root, text="Paste your code here:").pack(anchor="nw", padx=10, pady=5)
+        self.code_area = scrolledtext.ScrolledText(root, width=100, height=20)
+        self.code_area.pack(padx=10, pady=5)
 
-        # --- Scrollable Text Output ---
-        self.output_area = scrolledtext.ScrolledText(root, width=100, height=30)
-        self.output_area.pack(padx=10, pady=10)
+        # Buttons
+        btn_frame = tk.Frame(root)
+        btn_frame.pack(pady=10)
+        tk.Button(btn_frame, text="Analyze Code", command=self.run_analysis).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Load File", command=self.load_file).pack(side="left", padx=5)
 
-    def browse_file(self):
-        file_path = filedialog.askopenfilename(title="Select code file")
+        # Output area
+        tk.Label(root, text="Analysis Output:").pack(anchor="nw", padx=10, pady=5)
+        self.output_area = scrolledtext.ScrolledText(root, width=100, height=15, state="disabled")
+        self.output_area.pack(padx=10, pady=5)
+
+    def load_file(self):
+        file_path = filedialog.askopenfilename(title="Select Code File",
+                                               filetypes=(("All files", "*.*"),))
         if file_path:
-            self.file_entry.delete(0, tk.END)
-            self.file_entry.insert(0, file_path)
+            with open(file_path, "r", encoding="utf-8") as f:
+                self.code_area.delete(1.0, tk.END)
+                self.code_area.insert(tk.END, f.read())
 
-    def analyze_code_thread(self):
-        # Run analysis in a separate thread to avoid freezing the GUI
-        thread = threading.Thread(target=self.analyze_code)
-        thread.start()
+            # Auto-detect language from extension
+            ext = file_path.split(".")[-1].lower()
+            if ext in ["py", "java", "js", "c", "cpp"]:
+                if ext == "cpp": ext = "c++"
+                self.lang_var.set(ext.capitalize())
 
-    def analyze_code(self):
-        path = self.file_entry.get()
-        lang = self.lang_var.get()
+    def run_analysis(self):
+        code = self.code_area.get(1.0, tk.END)
+        lang = self.lang_var.get().lower()
 
-        if not path:
-            messagebox.showerror("Error", "Please select a file!")
+        if not code.strip():
+            messagebox.showwarning("Warning", "Please enter some code to analyze.")
             return
 
+        # Run analysis in separate thread
+        threading.Thread(target=self.analyze_thread, args=(code, lang), daemon=True).start()
+
+    def analyze_thread(self, code, lang):
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                code = f.read()
+            result = analyze_code(code, lang)
         except Exception as e:
-            messagebox.showerror("Error", f"Cannot read file: {e}")
-            return
+            result = {"error": str(e)}
 
-        result = analyze_code(code, lang)
-        if "error" in result:
-            messagebox.showerror("Error", result["error"])
-            return
+        # Update output in main thread
+        self.output_area.after(0, lambda: self.display_result(result))
 
+        # Visualize dependencies in main thread
+        self.output_area.after(0, lambda: visualize_dependencies(result.get("dependencies", {})))
+
+    def display_result(self, result):
+        self.output_area.config(state="normal")
         self.output_area.delete(1.0, tk.END)
 
-        self.output_area.insert(tk.END, f"Language Detected: {result['language']}\n\n")
-
-        # Critical Functions
-        critical_funcs = []
-        size_lookup = dict(result.get("function_sizes", []))
-        for f in result.get("complexity", []):
-            name, comp, _ = f if len(f)==3 else (f[0],0,0)
-            size_val = size_lookup.get(name,0)
-            if comp > 10 or size_val > 20:
-                critical_funcs.append((name, comp, size_val))
-
-        if critical_funcs:
-            self.output_area.insert(tk.END, "⚠️ Critical Functions Detected:\n")
-            for name, comp, size in critical_funcs:
-                self.output_area.insert(tk.END, f" - {name}: complexity={comp}, lines={size}\n")
+        if "error" in result:
+            self.output_area.insert(tk.END, f"Error: {result['error']}\n")
         else:
-            self.output_area.insert(tk.END, "✅ No critical functions detected!\n")
+            for key, value in result.items():
+                self.output_area.insert(tk.END, f"{key}: {value}\n")
 
-        # Function Complexity Graph
-        self.output_area.insert(tk.END, "\n📊 Function Complexity Graph:\n")
-        for f in result.get("complexity", []):
-            name, comp, _ = f if len(f)==3 else (f[0],0,0)
-            bar = "█" * (comp if comp > 0 else 2)
-            self.output_area.insert(tk.END, f"{name.ljust(20)} | {bar} {comp}\n")
-
-        # Time Complexity (Python)
-        if result['language'].lower() == "python":
-            self.output_area.insert(tk.END, "\n⏱️ Time Complexity Estimation:\n")
-            for name, complexity, _ in result.get("time_complexity", []):
-                self.output_area.insert(tk.END, f" - {name}: {complexity}\n")
-
-        # Summary
-        self.output_area.insert(tk.END, "\n--- Analysis Report ---\n")
-        if result['language'].lower() == "python":
-            self.output_area.insert(tk.END, f"Maintainability Index: {result.get('maintainability_index',0)}\n")
-            self.output_area.insert(tk.END, f"Comment Lines: {result.get('comment_lines',0)} ({result.get('comment_ratio',0)}%)\n")
-
-        self.output_area.insert(tk.END, f"Average Complexity: {result.get('avg_complexity',0)}\n")
-        self.output_area.insert(tk.END, f"Total Lines: {result.get('total_lines',0)}\n")
-        self.output_area.insert(tk.END, f"Number of Functions: {result.get('function_count',0)}\n")
-        self.output_area.insert(tk.END, f"Largest Function: {result.get('largest_function',('None',0))[0]} ({result.get('largest_function',('None',0))[1]} lines)\n")
-        self.output_area.insert(tk.END, f"Efficiency Grade: {result.get('efficiency_grade','A')}\n")
-        self.output_area.insert(tk.END, f"Loops Detected: {result.get('loops',0)}\n")
-        self.output_area.insert(tk.END, f"Nested Loops: {result.get('nested_loops',0)}\n")
-
-        # Dead Code Analysis
-        self.output_area.insert(tk.END, "\n🧠 Dead Code Analysis:\n")
-        unused_vars = result.get("unused_vars", [])
-        unused_funcs = result.get("unused_funcs", [])
-        if unused_vars:
-            self.output_area.insert(tk.END, f" - Unused Variables: {', '.join(unused_vars)}\n")
-        else:
-            self.output_area.insert(tk.END, " - No unused variables found!\n")
-        if unused_funcs:
-            self.output_area.insert(tk.END, f" - Unused Functions: {', '.join(unused_funcs)}\n")
-        else:
-            self.output_area.insert(tk.END, " - No unused functions found!\n")
-
-        # Suggestions
-        self.output_area.insert(tk.END, "\nSuggestions:\n")
-        for s in result.get("suggestions", []):
-            self.output_area.insert(tk.END, f" - {s}\n")
-
-        # Save report automatically
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        report_name = f"analysis_report_{timestamp}.txt"
-        with open(report_name, "w", encoding="utf-8") as report_file:
-            report_file.write(self.output_area.get(1.0, tk.END))
-        self.output_area.insert(tk.END, f"\n📄 Report saved as: {report_name}\n")
-
-        # Optional: visualize dependencies
-        visualize_dependencies(result.get("dependencies", {}))
-
+        self.output_area.config(state="disabled")
 
 if __name__ == "__main__":
     root = tk.Tk()

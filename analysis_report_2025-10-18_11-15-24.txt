@@ -1,0 +1,26 @@
+Language Detected: c
+
+✅ No critical functions detected!
+
+📊 Function Complexity Graph:
+sumArray             | ██ 0
+printPairs           | ██ 0
+unusedFunction       | ██ 0
+main                 | ██ 0
+
+--- Analysis Report ---
+Average Complexity: 0
+Total Lines: 0
+Number of Functions: 4
+Largest Function: sumArray (0 lines)
+Efficiency Grade: A
+Loops Detected: 3
+Nested Loops: 0
+
+🧠 Dead Code Analysis:
+ - No unused variables found!
+ - No unused functions found!
+
+Suggestions:
+ - ⚠️ Regex-based analysis used. For accurate results, integrate libclang.
+

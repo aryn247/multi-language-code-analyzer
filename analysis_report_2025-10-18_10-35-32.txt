@@ -1,0 +1,24 @@
+Language Detected: Java
+
+✅ No critical functions detected!
+
+📊 Function Complexity Graph:
+main                 | █ 1
+add                  | █ 1
+loopExample          | ██ 2
+
+--- Analysis Report ---
+Average Complexity: 1.33
+Total Lines: 0
+Number of Functions: 3
+Largest Function: main (3 lines)
+Efficiency Grade: A
+Loops Detected: 1
+Nested Loops: 0
+
+🧠 Dead Code Analysis:
+ - No unused variables found!
+ - Unused Functions: loopExample, add, main
+
+Suggestions:
+

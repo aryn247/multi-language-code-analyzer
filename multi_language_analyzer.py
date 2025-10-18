@@ -5,6 +5,7 @@ from radon.complexity import cc_visit
 from radon.metrics import mi_visit
 import javalang
 import esprima
+import re
 
 # ------------------ Python Analysis ------------------
 def analyze_python(code):
@@ -13,18 +14,15 @@ def analyze_python(code):
     except Exception as e:
         return {"error": f"Error parsing Python code: {e}"}
 
-    # Maintainability Index
     try:
         mi = round(mi_visit(code, True), 2)
     except Exception:
         mi = "N/A"
 
-    # Cyclomatic Complexity
     functions = cc_visit(code)
     complexities = [(f.name, f.complexity, f.lineno) for f in functions]
     avg_complexity = round(sum(f.complexity for f in functions) / len(functions), 2) if functions else 0
 
-    # Loop detection
     loop_lines = [n.lineno for n in ast.walk(tree) if isinstance(n, (ast.For, ast.While))]
     nested_loops = 0
     for node in ast.walk(tree):
@@ -33,7 +31,6 @@ def analyze_python(code):
                 if isinstance(child, (ast.For, ast.While)) and child != node:
                     nested_loops += 1
 
-    # Function size
     function_sizes = []
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
@@ -81,7 +78,7 @@ def analyze_python(code):
             self.generic_visit(node)
     DependencyAnalyzer().visit(tree)
 
-    # Time complexity (approx. nested loops)
+    # Time complexity approximation
     time_complexities = []
     class LoopVisitor(ast.NodeVisitor):
         def __init__(self):
@@ -112,7 +109,6 @@ def analyze_python(code):
                 complexity = f"O(n^{depth})"
             time_complexities.append((node.name, complexity, node.lineno))
 
-    # Efficiency grade
     if avg_complexity <= 5: efficiency = "A"
     elif avg_complexity <= 10: efficiency = "B"
     elif avg_complexity <= 15: efficiency = "C"
@@ -168,38 +164,13 @@ def analyze_java(code):
         name = node.name
         start_line = node.position.line if node.position else 0
         end_line = start_line + len(node.body) if node.body else start_line
-        methods.append((name, 1, end_line - start_line))  # cyclomatic complexity initial=1
+        methods.append((name, 1, end_line - start_line))
         dependencies[name] = []
         unused_methods.add(name)
-
-        # Cyclomatic complexity approx.
-        comp = 1
-        for n in node.body:
-            if isinstance(n, (javalang.tree.IfStatement,
-                              javalang.tree.ForStatement,
-                              javalang.tree.WhileStatement,
-                              javalang.tree.DoStatement,
-                              javalang.tree.SwitchStatement,
-                              javalang.tree.CatchClause)):
-                comp += 1
-        methods[-1] = (name, comp, end_line - start_line)
-
-        # Loops
-        for n in node.body:
-            if isinstance(n, (javalang.tree.ForStatement,
-                              javalang.tree.WhileStatement,
-                              javalang.tree.DoStatement)):
-                loop_count += 1
-                for c in getattr(n, "body", []):
-                    if isinstance(c, (javalang.tree.ForStatement,
-                                      javalang.tree.WhileStatement,
-                                      javalang.tree.DoStatement)):
-                        nested_loops += 1
 
     avg_complexity = round(sum(comp for _, comp, _ in methods)/len(methods),2) if methods else 0
     function_sizes = [(name,size) for name,_,size in methods]
 
-    # Approximate time complexity based on nested loops depth
     time_complexities = []
     for name, _, size in methods:
         if size == 0: complexity = "O(1)"
@@ -244,15 +215,9 @@ def analyze_js(code):
             unused_funcs.add(name)
             parent_func = name
 
-        # Loops
         if node.type in ["ForStatement","WhileStatement","DoWhileStatement"]:
             loop_count += 1
-            body = getattr(node.body,"body",[]) if hasattr(node.body,"body") else []
-            for c in body:
-                if hasattr(c,"type") and c.type in ["ForStatement","WhileStatement","DoWhileStatement"]:
-                    nested_loops += 1
 
-        # Recursively traverse children
         for key, value in node.__dict__.items():
             if isinstance(value,list):
                 for item in value:
@@ -285,12 +250,40 @@ def analyze_js(code):
         "suggestions":[]
     }
 
+# ------------------ C/C++ Analysis ------------------
+def analyze_c_cpp(code, language):
+    functions = re.findall(r'\b(?:int|void|char|float|double)\s+(\w+)\s*\(', code)
+    loops = re.findall(r'\b(for|while|do)\b', code)
+    function_sizes = [(f, 0) for f in functions]
+    complexities = [(f, 0, 0) for f in functions]
+
+    dependencies = {f: [] for f in functions}
+    for i in range(len(functions)-1):
+        dependencies[functions[i]].append(functions[i+1])
+
+    return {
+        "language": language,
+        "function_count": len(functions),
+        "function_sizes": function_sizes,
+        "complexity": complexities,
+        "avg_complexity": 0,
+        "loops": len(loops),
+        "nested_loops": 0,
+        "largest_function": (functions[0] if functions else "None",0),
+        "unused_vars": [],
+        "unused_funcs": [],
+        "dependencies": dependencies,
+        "time_complexity": [],
+        "suggestions": ["⚠️ Regex-based analysis used. For accurate results, integrate libclang."]
+    }
+
 # ------------------ Generic Analyzer ------------------
 def analyze_code(code, lang):
     lang = lang.lower()
     if lang=="python": return analyze_python(code)
     if lang=="java": return analyze_java(code)
     if lang=="js": return analyze_js(code)
+    if lang in ["c","cpp"]: return analyze_c_cpp(code, lang)
     return {"error":"Unsupported language"}
 
 # ------------------ Dependency Visualization ------------------
@@ -299,7 +292,14 @@ def visualize_dependencies(dependencies):
         print("No function dependencies to display.")
         return
     G = nx.DiGraph(dependencies)
+
+    try:
+        pos = nx.nx_agraph.graphviz_layout(G, prog='dot')
+    except:
+        pos = nx.spring_layout(G, seed=42)
+
     plt.figure(figsize=(8,6))
-    nx.draw(G, with_labels=True, node_color='skyblue', node_size=2000, font_size=10, arrowsize=20)
+    nx.draw(G, pos, with_labels=True, node_color='skyblue', node_size=2000,
+            font_size=10, arrowsize=20, arrowstyle='-|>')
     plt.title("Function Dependency Graph")
     plt.show()
