@@ -5,7 +5,8 @@ from radon.complexity import cc_visit
 from radon.metrics import mi_visit
 import javalang
 import esprima
-import re
+import re  # for simple C/C++ parsing
+from io import BytesIO
 
 # ------------------ Python Analysis ------------------
 def analyze_python(code):
@@ -14,15 +15,18 @@ def analyze_python(code):
     except Exception as e:
         return {"error": f"Error parsing Python code: {e}"}
 
+    # Maintainability Index
     try:
         mi = round(mi_visit(code, True), 2)
     except Exception:
         mi = "N/A"
 
+    # Cyclomatic Complexity
     functions = cc_visit(code)
     complexities = [(f.name, f.complexity, f.lineno) for f in functions]
     avg_complexity = round(sum(f.complexity for f in functions) / len(functions), 2) if functions else 0
 
+    # Loop detection
     loop_lines = [n.lineno for n in ast.walk(tree) if isinstance(n, (ast.For, ast.While))]
     nested_loops = 0
     for node in ast.walk(tree):
@@ -31,6 +35,7 @@ def analyze_python(code):
                 if isinstance(child, (ast.For, ast.While)) and child != node:
                     nested_loops += 1
 
+    # Function size
     function_sizes = []
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
@@ -41,6 +46,7 @@ def analyze_python(code):
     # Dead code detection
     assigned_vars, used_vars = set(), set()
     defined_funcs, called_funcs = set(), set()
+
     class UsageAnalyzer(ast.NodeVisitor):
         def visit_Assign(self, node):
             for target in node.targets:
@@ -78,7 +84,7 @@ def analyze_python(code):
             self.generic_visit(node)
     DependencyAnalyzer().visit(tree)
 
-    # Time complexity approximation
+    # Time complexity (approx. nested loops)
     time_complexities = []
     class LoopVisitor(ast.NodeVisitor):
         def __init__(self):
@@ -109,6 +115,7 @@ def analyze_python(code):
                 complexity = f"O(n^{depth})"
             time_complexities.append((node.name, complexity, node.lineno))
 
+    # Efficiency grade
     if avg_complexity <= 5: efficiency = "A"
     elif avg_complexity <= 10: efficiency = "B"
     elif avg_complexity <= 15: efficiency = "C"
@@ -150,104 +157,67 @@ def analyze_python(code):
         "time_complexity": time_complexities
     }
 
-# ------------------ Java Analysis ------------------
-def analyze_java(code):
-    try:
-        tree = javalang.parse.parse(code)
-    except Exception as e:
-        return {"error": f"Error parsing Java code: {e}"}
-
-    methods, dependencies, unused_methods = [], {}, set()
-    loop_count = nested_loops = 0
-
-    for path, node in tree.filter(javalang.tree.MethodDeclaration):
-        name = node.name
-        start_line = node.position.line if node.position else 0
-        end_line = start_line + len(node.body) if node.body else start_line
-        methods.append((name, 1, end_line - start_line))
-        dependencies[name] = []
-        unused_methods.add(name)
-
-    avg_complexity = round(sum(comp for _, comp, _ in methods)/len(methods),2) if methods else 0
-    function_sizes = [(name,size) for name,_,size in methods]
-
-    time_complexities = []
-    for name, _, size in methods:
-        if size == 0: complexity = "O(1)"
-        elif size <= 5: complexity = "O(n)"
-        elif size <= 15: complexity = "O(n²)"
-        else: complexity = f"O(n^{size//5})"
-        time_complexities.append((name, complexity, 0))
-
-    return {
-        "language":"Java",
-        "function_count":len(methods),
-        "function_sizes":function_sizes,
-        "complexity":[(name, comp, 0) for name, comp, _ in methods],
-        "avg_complexity":avg_complexity,
-        "loops":loop_count,
-        "nested_loops":nested_loops,
-        "largest_function":max(function_sizes,key=lambda x:x[1]) if methods else ("None",0),
-        "dependencies":dependencies,
-        "unused_funcs":list(unused_methods),
-        "time_complexity":time_complexities,
-        "suggestions":[]
-    }
-
 # ------------------ JavaScript Analysis ------------------
 def analyze_js(code):
     try:
         tree = esprima.parseScript(code, {"tolerant": True, "loc": True})
-    except Exception as e:
-        return {"error": f"Error parsing JavaScript code: {e}"}
+    except:
+        return {"error": "Error parsing JavaScript code"}
 
-    functions, dependencies, unused_funcs = [], {}, set()
-    loop_count = nested_loops = 0
-
-    def traverse(node, parent_func=None):
-        nonlocal loop_count, nested_loops
+    functions, dependencies = [], {}
+    loops, nested_loops = 0, 0
+    for node in tree.body:
         if node.type == "FunctionDeclaration":
-            name = node.id.name
-            start_line = node.loc.start.line
-            end_line = node.loc.end.line
-            functions.append((name,1,end_line-start_line))
-            dependencies[name] = []
-            unused_funcs.add(name)
-            parent_func = name
+            functions.append((node.id.name, 1, node.loc.end.line - node.loc.start.line))
+            dependencies[node.id.name] = []
 
-        if node.type in ["ForStatement","WhileStatement","DoWhileStatement"]:
-            loop_count += 1
-
-        for key, value in node.__dict__.items():
-            if isinstance(value,list):
-                for item in value:
-                    if hasattr(item,"type"): traverse(item,parent_func)
-            elif hasattr(value,"type"): traverse(value,parent_func)
-
-    traverse(tree)
-    avg_complexity = round(sum(comp for _,comp,_ in functions)/len(functions),2) if functions else 0
-    function_sizes = [(name,size) for name,_,size in functions]
-    time_complexities = []
-    for name,_,size in functions:
-        if size == 0: complexity="O(1)"
-        elif size<=5: complexity="O(n)"
-        elif size<=15: complexity="O(n²)"
-        else: complexity=f"O(n^{size//5})"
-        time_complexities.append((name,complexity,0))
+    function_sizes = [(f, s) for f, _, s in functions]
+    complexities = [(f, c, 0) for f, c, _ in functions]
 
     return {
-        "language":"JavaScript",
-        "function_count":len(functions),
-        "function_sizes":function_sizes,
-        "complexity":[(name,comp,0) for name,comp,_ in functions],
-        "avg_complexity":avg_complexity,
-        "loops":loop_count,
-        "nested_loops":nested_loops,
-        "largest_function":max(function_sizes,key=lambda x:x[1]) if functions else ("None",0),
-        "dependencies":dependencies,
-        "unused_funcs":list(unused_funcs),
-        "time_complexity":time_complexities,
-        "suggestions":[]
+        "language": "JavaScript",
+        "function_count": len(functions),
+        "function_sizes": function_sizes,
+        "complexity": complexities,
+        "avg_complexity": 0,
+        "loops": loops,
+        "nested_loops": nested_loops,
+        "largest_function": (functions[0][0] if functions else "None",0),
+        "dependencies": dependencies,
+        "unused_funcs": [],
+        "time_complexity": [],
+        "suggestions": []
+    }
+
+# ------------------ Java Analysis ------------------
+def analyze_java(code):
+    try:
+        tree = javalang.parse.parse(code)
+    except:
+        return {"error": "Error parsing Java code"}
+
+    methods, dependencies = [], {}
+    loops, nested_loops = 0, 0
+    for path, node in tree.filter(javalang.tree.MethodDeclaration):
+        methods.append((node.name, 1, len(node.body) if node.body else 0))
+        dependencies[node.name] = []
+
+    function_sizes = [(m, s) for m, _, s in methods]
+    complexities = [(m, c, 0) for m, c, _ in methods]
+
+    return {
+        "language": "Java",
+        "function_count": len(methods),
+        "function_sizes": function_sizes,
+        "complexity": complexities,
+        "avg_complexity": 0,
+        "loops": loops,
+        "nested_loops": nested_loops,
+        "largest_function": (methods[0][0] if methods else "None",0),
+        "dependencies": dependencies,
+        "unused_funcs": [],
+        "time_complexity": [],
+        "suggestions": []
     }
 
 # ------------------ C/C++ Analysis ------------------
@@ -256,11 +226,9 @@ def analyze_c_cpp(code, language):
     loops = re.findall(r'\b(for|while|do)\b', code)
     function_sizes = [(f, 0) for f in functions]
     complexities = [(f, 0, 0) for f in functions]
-
     dependencies = {f: [] for f in functions}
     for i in range(len(functions)-1):
         dependencies[functions[i]].append(functions[i+1])
-
     return {
         "language": language,
         "function_count": len(functions),
@@ -292,14 +260,19 @@ def visualize_dependencies(dependencies):
         print("No function dependencies to display.")
         return
     G = nx.DiGraph(dependencies)
-
     try:
-        pos = nx.nx_agraph.graphviz_layout(G, prog='dot')
+        pos = nx.nx_agraph.graphviz_layout(G, prog='dot')  # hierarchical layout
     except:
         pos = nx.spring_layout(G, seed=42)
-
     plt.figure(figsize=(8,6))
-    nx.draw(G, pos, with_labels=True, node_color='skyblue', node_size=2000,
+    # Color nodes by number of dependencies
+    colors = []
+    for node in G.nodes():
+        dep_count = len(dependencies.get(node, []))
+        if dep_count == 0: colors.append('green')
+        elif dep_count <= 2: colors.append('yellow')
+        else: colors.append('red')
+    nx.draw(G, pos, with_labels=True, node_color=colors, node_size=2000,
             font_size=10, arrowsize=20, arrowstyle='-|>')
     plt.title("Function Dependency Graph")
     plt.show()

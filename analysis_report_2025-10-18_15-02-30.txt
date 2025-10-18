@@ -1,0 +1,37 @@
+Language Detected: c
+
+✅ No critical functions detected!
+
+📊 Function Complexity Graph:
+printArray           | ██ 0
+findMax              | ██ 0
+swap                 | ██ 0
+printStudent         | ██ 0
+factorial            | ██ 0
+stringDemo           | ██ 0
+main                 | ██ 0
+printArray           | ██ 0
+findMax              | ██ 0
+swap                 | ██ 0
+printStudent         | ██ 0
+factorial            | ██ 0
+stringDemo           | ██ 0
+
+⏱️ Time Complexity Estimation:
+
+--- Analysis Report ---
+Average Complexity: 0
+Total Lines: 0
+Number of Functions: 13
+Largest Function: printArray (0 lines)
+Efficiency Grade: A
+Loops Detected: 3
+Nested Loops: 0
+
+🧠 Dead Code Analysis:
+ - No unused variables found!
+ - No unused functions found!
+
+Suggestions:
+ - ⚠️ Regex-based analysis used. For accurate results, integrate libclang.
+
