@@ -1,4 +1,5 @@
 import ast
+from unicodedata import name
 import networkx as nx
 import matplotlib.pyplot as plt
 from radon.complexity import cc_visit
@@ -9,6 +10,7 @@ import re  # for simple C/C++ parsing
 from io import BytesIO
 
 # ------------------ Python Analysis ------------------
+
 def analyze_python(code):
     try:
         tree = ast.parse(code)
@@ -123,17 +125,23 @@ def analyze_python(code):
 
     # Suggestions
     suggestions = []
-    if nested_loops > 0: suggestions.append("⚙️ Nested loops detected — consider using data structures or sets for optimization.")
-    if sum(1 for l in code.splitlines() if l.strip().startswith("#")) / max(len(code.splitlines()),1)*100 < 5:
+    comment_ratio = sum(1 for l in code.splitlines() if l.strip().startswith("#")) / max(len(code.splitlines()), 1) * 100
+    if nested_loops > 0:
+        suggestions.append("⚙️ Nested loops detected — consider using data structures or sets for optimization.")
+    if comment_ratio < 5:
         suggestions.append("⚠️ Low comment ratio — add docstrings or comments for maintainability.")
     if mi != "N/A" and mi < 60:
         suggestions.append("❗ Low maintainability — consider refactoring long or complex functions.")
-    if unused_vars: suggestions.append(f"⚠️ Unused variables detected: {', '.join(unused_vars)}")
-    if unused_funcs: suggestions.append(f"⚙️ Unused functions: {', '.join(unused_funcs)} — consider removing dead code.")
+    if unused_vars:
+        suggestions.append(f"⚠️ Unused variables detected: {', '.join(unused_vars)}")
+    if unused_funcs:
+        suggestions.append(f"⚙️ Unused functions: {', '.join(unused_funcs)} — consider removing dead code.")
     for name, size in function_sizes:
-        if size > 50: suggestions.append(f"⚠️ Function '{name}' is too long ({size} lines) — consider splitting.")
+        if size > 50:
+            suggestions.append(f"⚠️ Function '{name}' is too long ({size} lines) — consider splitting.")
     for name, comp, _ in complexities:
-        if comp > 10: suggestions.append(f"❗ Function '{name}' has high cyclomatic complexity ({comp}) — consider refactoring.")
+        if comp > 10:
+            suggestions.append(f"❗ Function '{name}' has high cyclomatic complexity ({comp}) — consider refactoring.")
 
     return {
         "language": "Python",
@@ -145,9 +153,9 @@ def analyze_python(code):
         "function_sizes": function_sizes,
         "total_lines": len(code.splitlines()),
         "comment_lines": sum(1 for l in code.splitlines() if l.strip().startswith("#")),
-        "comment_ratio": round(sum(1 for l in code.splitlines() if l.strip().startswith("#")) / max(len(code.splitlines()),1)*100,2),
+        "comment_ratio": round(comment_ratio, 2),
         "function_count": len(function_sizes),
-        "largest_function": max(function_sizes, key=lambda x:x[1]) if function_sizes else ("None",0),
+        "largest_function": max(function_sizes, key=lambda x: x[1]) if function_sizes else ("None", 0),
         "efficiency_grade": efficiency,
         "suggestions": suggestions,
         "loops_lines": loop_lines,
@@ -158,6 +166,7 @@ def analyze_python(code):
     }
 
 # ------------------ JavaScript Analysis ------------------
+
 def analyze_js(code):
     try:
         tree = esprima.parseScript(code, {"tolerant": True, "loc": True})
@@ -182,7 +191,7 @@ def analyze_js(code):
         "avg_complexity": 0,
         "loops": loops,
         "nested_loops": nested_loops,
-        "largest_function": (functions[0][0] if functions else "None",0),
+        "largest_function": (functions[0][0] if functions else "None", 0),
         "dependencies": dependencies,
         "unused_funcs": [],
         "time_complexity": [],
@@ -190,6 +199,7 @@ def analyze_js(code):
     }
 
 # ------------------ Java Analysis ------------------
+
 def analyze_java(code):
     try:
         tree = javalang.parse.parse(code)
@@ -213,7 +223,7 @@ def analyze_java(code):
         "avg_complexity": 0,
         "loops": loops,
         "nested_loops": nested_loops,
-        "largest_function": (methods[0][0] if methods else "None",0),
+        "largest_function": (methods[0][0] if methods else "None", 0),
         "dependencies": dependencies,
         "unused_funcs": [],
         "time_complexity": [],
@@ -221,40 +231,147 @@ def analyze_java(code):
     }
 
 # ------------------ C/C++ Analysis ------------------
+
 def analyze_c_cpp(code, language):
-    functions = re.findall(r'\b(?:int|void|char|float|double)\s+(\w+)\s*\(', code)
-    loops = re.findall(r'\b(for|while|do)\b', code)
-    function_sizes = [(f, 0) for f in functions]
-    complexities = [(f, 0, 0) for f in functions]
-    dependencies = {f: [] for f in functions}
-    for i in range(len(functions)-1):
-        dependencies[functions[i]].append(functions[i+1])
+    """
+    Improved regex-based C/C++ analyzer (best-effort).
+    - Finds function definitions and their bodies
+    - Computes lines per function
+    - Counts loops and nested loop depth per function
+    - Produces simple dependencies (sequential link) for visualization
+    Note: still heuristic; libclang is recommended for full accuracy.
+    """
+    lines = code.splitlines()
+    total_lines = len(lines)
+
+    # Regex to find probable function definitions (avoid prototypes ending with ;)
+    func_def_re = re.compile(
+        r'([a-zA-Z_][\w\*\s\<\>\:]*?)'    # return type (approx)
+        r'\s+([a-zA-Z_]\w*)'              # function name (capture)
+        r'\s*\([^;{]*\)\s*'               # params (no ; or { inside)
+        r'\{',                            # opening brace of function body
+        re.MULTILINE
+    )
+
+    functions = []
+    for m in func_def_re.finditer(code):
+        name = m.group(2)
+        start_pos = m.end() - 1
+        brace_count, idx, n = 0, start_pos, len(code)
+        while idx < n:
+            ch = code[idx]
+            if ch == '{':
+                brace_count += 1
+            elif ch == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    end_pos = idx
+                    break
+            idx += 1
+        else:
+            continue
+        body = code[start_pos+1:end_pos]  # exclude outer braces
+        start_line = code[:m.start()].count('\n') + 1
+        end_line = code[:end_pos].count('\n') + 1
+        functions.append((name, start_line, end_line, body))
+
+    # Deduplicate by name while keeping first occurrence order
+    seen = set()
+    dedup_funcs = []
+    for name, sline, eline, body in functions:
+        if name not in seen:
+            seen.add(name)
+            dedup_funcs.append((name, sline, eline, body))
+    functions = dedup_funcs
+
+    function_sizes, complexities, dependencies, time_complexity = [], [], {}, []
+    total_loops, nested_loops_global = 0, 0
+
+    def loop_nesting_depth(body_text):
+        tokens = re.split(r'(\{|\})', body_text)
+        depth, max_depth = 0, 0
+        for t in tokens:
+            if re.search(r'\b(for|while|do)\b', t):
+                depth += 1
+                max_depth = max(max_depth, depth)
+            if t == '}':
+                if depth > 0:
+                    depth -= 1
+        return max_depth
+
+    for i, (name, sline, eline, body) in enumerate(functions):
+        lines_count = max(0, eline - sline + 1)
+        function_sizes.append((name, lines_count))
+
+        # Estimate cyclomatic complexity
+        decisions = len(re.findall(r'\b(if|else if|for|while|case|&&|\|\|)\b', body))
+        complexity = max(1, 1 + decisions)
+        complexities.append((name, complexity, sline))
+
+        loops_here = len(re.findall(r'\b(for|while|do)\b', body))
+        total_loops += loops_here
+        nested_depth = loop_nesting_depth(body)
+        nested_loops_global = max(nested_loops_global, nested_depth)
+
+        # time complexity heuristic
+        is_recursive = re.search(r'\b' + re.escape(name) + r'\s*\(', body)
+        if is_recursive:
+            tc = "O(n)"  # assume simple linear recursion
+        elif nested_depth == 0:
+            tc = "O(1)"
+        elif nested_depth == 1:
+            tc = "O(n)"
+        elif nested_depth == 2:
+            tc = "O(n²)"
+        else:
+            tc = f"O(n^{nested_depth})"
+        time_complexity.append((name, tc, sline))
+
+        dependencies[name] = []
+
+    # simple sequential linking so graph is connected (demo only)
+    names = [n for n,_,_,_ in functions]
+    for i in range(len(names)-1):
+        dependencies[names[i]].append(names[i+1])
+
+    avg_complexity = round(sum(c for _, c, _ in complexities) / len(complexities), 2) if complexities else 0
+
+    # Efficiency grade based on avg_complexity
+    if avg_complexity <= 5: efficiency = "A"
+    elif avg_complexity <= 10: efficiency = "B"
+    elif avg_complexity <= 15: efficiency = "C"
+    else: efficiency = "D"
+
     return {
         "language": language,
         "function_count": len(functions),
         "function_sizes": function_sizes,
         "complexity": complexities,
-        "avg_complexity": 0,
-        "loops": len(loops),
-        "nested_loops": 0,
-        "largest_function": (functions[0] if functions else "None",0),
+        "avg_complexity": avg_complexity,
+        "total_lines": total_lines,
+        "largest_function": max(function_sizes, key=lambda x: x[1]) if function_sizes else ("None", 0),
+        "efficiency_grade": efficiency,
+        "loops": total_loops,
+        "nested_loops": nested_loops_global,
         "unused_vars": [],
         "unused_funcs": [],
         "dependencies": dependencies,
-        "time_complexity": [],
-        "suggestions": ["⚠️ Regex-based analysis used. For accurate results, integrate libclang."]
+        "time_complexity": time_complexity,
+        "suggestions": []
     }
 
 # ------------------ Generic Analyzer ------------------
+
 def analyze_code(code, lang):
     lang = lang.lower()
-    if lang=="python": return analyze_python(code)
-    if lang=="java": return analyze_java(code)
-    if lang=="js": return analyze_js(code)
-    if lang in ["c","cpp"]: return analyze_c_cpp(code, lang)
-    return {"error":"Unsupported language"}
+    if lang == "python": return analyze_python(code)
+    if lang == "java": return analyze_java(code)
+    if lang == "js": return analyze_js(code)
+    if lang in ["c", "cpp"]: return analyze_c_cpp(code, lang)
+    return {"error": "Unsupported language"}
 
 # ------------------ Dependency Visualization ------------------
+
 def visualize_dependencies(dependencies):
     if not dependencies:
         print("No function dependencies to display.")
@@ -269,9 +386,12 @@ def visualize_dependencies(dependencies):
     colors = []
     for node in G.nodes():
         dep_count = len(dependencies.get(node, []))
-        if dep_count == 0: colors.append('green')
-        elif dep_count <= 2: colors.append('yellow')
-        else: colors.append('red')
+        if dep_count == 0:
+            colors.append('green')
+        elif dep_count <= 2:
+            colors.append('yellow')
+        else:
+            colors.append('red')
     nx.draw(G, pos, with_labels=True, node_color=colors, node_size=2000,
             font_size=10, arrowsize=20, arrowstyle='-|>')
     plt.title("Function Dependency Graph")
