@@ -4,4 +4,6 @@ esprima
 networkx
 matplotlib
 radon
-tk
+fastapi
+uvicorn
+python-multipart
