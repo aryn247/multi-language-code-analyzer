@@ -1,5 +1,0 @@
-=== Multi-Language Code Analyzer ===
-Analyzed File: sample_code.java
-Language: Java
-Number of Functions/Methods: 3
-Loops Detected: 1
